@@ -1,0 +1,18 @@
+# Secrets — Google OAuth client + tokens (never commit)
+credentials.json
+client_secret*.json
+token.json
+
+# Run state & logs (contain personal Drive file names + IDs)
+processed.jsonl
+*.log
+
+# Personal photos written by --dump-dir
+samples/
+
+# Build artifacts
+gdrive-compress
+
+# OS / local tool state
+.DS_Store
+.claude/settings.local.json
