@@ -130,7 +130,7 @@ The cheap loop is the tool's own dry run, which is the default:
 - [ ] `README.md` updated in the same commit if a flag, a default or a recipe
       changed; it is the user manual and it is French.
 - [ ] No typographic dash in the diff.
-- [ ] Committed to `master` and pushed. There is no CI: the local check is all
-      there is.
+- [ ] Committed and pushed. The branch here is `main` (not `master`, unlike the
+      sibling repositories). There is no CI: the local check is all there is.
 - [ ] Anything the human must run by hand said explicitly, in particular that
       quota only comes back once Drive drops the old revisions.
