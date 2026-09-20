@@ -41,13 +41,13 @@ L'UI a été refondue récemment, voici la version à jour :
 5. **Contact information** : ton email comme developer contact.
 6. **Finish** / **Terminer**.
 
-Ensuite ajoute ton compte Gmail comme **testeur autorisé** — sinon l'auth sera bloquée avec "Access blocked: app has not completed verification" :
+Ensuite ajoute ton compte Gmail comme **testeur autorisé** - sinon l'auth sera bloquée avec "Access blocked: app has not completed verification" :
 
 1. Va sur https://console.cloud.google.com/auth/audience
 2. Section **"Test users"** → **"+ Add users"** → saisis l'adresse Gmail du compte dont tu veux compresser les photos (par ex. `monemail@gmail.com`) → **Save**.
 3. La liste prend effet immédiatement, pas besoin d'attendre.
 
-ℹ️ Tu peux laisser l'app en mode **"Testing"** indéfiniment pour un usage perso. Le bouton "Publish app" / "Production" déclenche au contraire une procédure de vérification — ne le presse pas.
+ℹ️ Tu peux laisser l'app en mode **"Testing"** indéfiniment pour un usage perso. Le bouton "Publish app" / "Production" déclenche au contraire une procédure de vérification - ne le presse pas.
 
 #### 2.4 Créer le client OAuth
 
@@ -68,13 +68,13 @@ Place-le dans le projet sous le nom `credentials.json` :
 
 ```bash
 mv ~/Downloads/client_secret_*.apps.googleusercontent.com.json \
-   /Users/ben/projects/gdrive-compress/credentials.json
+   <dossier-du-depot>/credentials.json
 ```
 
 > **Si rien ne se télécharge** au clic sur "DOWNLOAD JSON" (bloqueur de popups, etc.), reconstruis le fichier à la main avec les valeurs visibles sur la page d'édition :
 >
 > ```bash
-> cat > /Users/ben/projects/gdrive-compress/credentials.json <<'EOF'
+> cat > credentials.json <<'EOF'
 > {
 >   "installed": {
 >     "client_id": "COLLE_LE_CLIENT_ID",
@@ -90,7 +90,7 @@ mv ~/Downloads/client_secret_*.apps.googleusercontent.com.json \
 ### 3. Build
 
 ```bash
-cd /Users/ben/projects/gdrive-compress
+cd <dossier-du-depot>
 go build .
 ```
 
@@ -102,7 +102,7 @@ go build .
 
 - Le navigateur s'ouvre sur l'écran de consentement Google.
 - **Choisis le compte Gmail que tu as ajouté comme testeur** (étape 2.3).
-- Tu verras un avertissement **"Google n'a pas vérifié cette application"** — c'est normal puisque l'app est la tienne et n'a pas été soumise à validation. Clique **"Avancé"** → **"Accéder à gdrive-compress (non sécurisé)"**.
+- Tu verras un avertissement **"Google n'a pas vérifié cette application"** - c'est normal puisque l'app est la tienne et n'a pas été soumise à validation. Clique **"Avancé"** → **"Accéder à gdrive-compress (non sécurisé)"**.
 - Coche les permissions demandées (lecture/écriture Drive) → **Continuer**.
 - Onglet "Authentification réussie", tu peux fermer.
 

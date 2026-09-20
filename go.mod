@@ -1,4 +1,4 @@
-module github.com/ben/gdrive-compress
+module github.com/bpineau/gdrive-compress
 
 go 1.26.0
 
