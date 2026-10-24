@@ -68,7 +68,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("open log: %v", err)
 	}
-	defer plog.Close()
+	defer func() {
+		if err := plog.Close(); err != nil {
+			log.Printf("close log: %v", err)
+		}
+	}()
 
 	processed, err := loadProcessed(*logPath)
 	if err != nil {

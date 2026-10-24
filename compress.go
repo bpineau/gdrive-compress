@@ -32,7 +32,7 @@ func compressJPEG(ctx context.Context, in []byte, maxSize int) ([]byte, string, 
 	if err != nil {
 		return nil, "", err
 	}
-	defer os.Remove(tmpIn)
+	defer func() { _ = os.Remove(tmpIn) }()
 
 	// First try at native resolution.
 	best, q, fits, err := searchQuality(ctx, tmpIn, "", maxSize)
@@ -134,9 +134,12 @@ func writeTemp(data []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
-	if _, err := f.Write(data); err != nil {
-		os.Remove(f.Name())
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		_ = os.Remove(f.Name())
 		return "", err
 	}
 	return f.Name(), nil

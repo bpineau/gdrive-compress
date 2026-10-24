@@ -53,13 +53,12 @@ func loadToken() (*oauth2.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	f, err := os.Open(p)
+	b, err := os.ReadFile(p)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
 	t := &oauth2.Token{}
-	if err := json.NewDecoder(f).Decode(t); err != nil {
+	if err := json.Unmarshal(b, t); err != nil {
 		return nil, err
 	}
 	return t, nil
@@ -70,12 +69,11 @@ func saveToken(t *oauth2.Token) error {
 	if err != nil {
 		return err
 	}
-	f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	b, err := json.Marshal(t)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	return json.NewEncoder(f).Encode(t)
+	return os.WriteFile(p, b, 0o600)
 }
 
 func openBrowser(u string) {
@@ -98,7 +96,7 @@ func interactiveAuth(ctx context.Context, cfg *oauth2.Config) (*oauth2.Token, er
 	if err != nil {
 		return nil, err
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	port := ln.Addr().(*net.TCPAddr).Port
 	cfg.RedirectURL = fmt.Sprintf("http://127.0.0.1:%d/callback", port)
 
@@ -124,12 +122,12 @@ func interactiveAuth(ctx context.Context, cfg *oauth2.Config) (*oauth2.Token, er
 			return
 		}
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprint(w, "<html><body><h2>Authentification reussie.</h2><p>Vous pouvez fermer cet onglet.</p></body></html>")
+		_, _ = fmt.Fprint(w, "<html><body><h2>Authentification reussie.</h2><p>Vous pouvez fermer cet onglet.</p></body></html>")
 		ch <- result{code: q.Get("code")}
 	})
 	srv := &http.Server{Handler: mux}
-	go srv.Serve(ln)
-	defer srv.Shutdown(ctx)
+	go func() { _ = srv.Serve(ln) }()
+	defer func() { _ = srv.Shutdown(ctx) }()
 
 	fmt.Println("Ouverture du navigateur pour authentification…")
 	fmt.Println("Si ça ne s'ouvre pas, copie-colle :", authURL)

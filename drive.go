@@ -59,7 +59,7 @@ func download(ctx context.Context, srv *drive.Service, fileID string) ([]byte, e
 		if err != nil {
 			return err
 		}
-		defer res.Body.Close()
+		defer func() { _ = res.Body.Close() }()
 		data, err = io.ReadAll(res.Body)
 		return err
 	})
