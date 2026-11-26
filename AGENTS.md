@@ -21,7 +21,7 @@ Who consumes it: one person at a terminal, against their own Drive. There is no
 library, no API and no sibling repo: nothing depends on this and it depends on
 nothing but the Google client libraries and `magick`.
 
-One `main` package, a few hundred lines, no tests, no Makefile. **The size is
+One `main` package, a few hundred lines, no Makefile. **The size is
 the point**: do not grow a framework around it.
 
 Progress is an append-only JSONL log (`processed.jsonl`), which is what makes a
@@ -76,7 +76,7 @@ it rather than trying to scrub history yourself.
 ```sh
 brew install imagemagick          # `magick` is a hard runtime dependency
 go build -o gdrive-compress .     # the binary is gitignored
-gofmt -l . && go vet ./...        # the whole gate; there are no tests
+gofmt -l . && go vet ./... && go test -timeout 1m ./...
 ```
 
 The cheap loop is the tool's own dry run, which is the default:
@@ -119,8 +119,8 @@ The cheap loop is the tool's own dry run, which is the default:
 
 ## Definition of done
 
-- [ ] `gofmt -l .` silent and `go vet ./...` clean. That is the whole gate:
-      there are no tests, so the real check is the next line.
+- [ ] `gofmt -l .` silent and `go vet ./...` clean. Run `go test -timeout 1m ./...`
+      and the dry run below.
 - [ ] The change exercised against Drive with `--limit` and `--dump-dir`, and
       the `{orig,new}` pairs looked at, BEFORE any wide `--apply`.
 - [ ] EXIF still present in a produced file, and `modifiedTime` unchanged on

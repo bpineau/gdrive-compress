@@ -29,8 +29,21 @@ type progressLog struct {
 }
 
 func openLog(path string) (*progressLog, error) {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
+		return nil, err
+	}
+	// Separate the next entry from a partial JSON line left by a crash.
+	info, err := f.Stat()
+	if err == nil && info.Size() > 0 {
+		var last [1]byte
+		_, err = f.ReadAt(last[:], info.Size()-1)
+		if err == nil && last[0] != '\n' {
+			_, err = f.WriteString("\n")
+		}
+	}
+	if err != nil {
+		f.Close()
 		return nil, err
 	}
 	return &progressLog{f: f}, nil
@@ -52,7 +65,7 @@ func (l *progressLog) write(e logEntry) error {
 }
 
 // loadProcessed returns the set of file IDs that previously completed
-// successfully (no Error, not skipped, not dry-run). Errors and dry-run
+// successfully, including files skipped for lack of savings. Errors and dry-run
 // rows are kept out so re-runs retry them.
 func loadProcessed(path string) (map[string]bool, error) {
 	out := map[string]bool{}

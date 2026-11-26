@@ -31,7 +31,7 @@ func listImages(ctx context.Context, srv *drive.Service, minSize int64, processe
 		Spaces("drive").
 		Pages(ctx, func(res *drive.FileList) error {
 			for _, f := range res.Files {
-				if f.Size < minSize || processed[f.Id] {
+				if f.Size <= minSize || processed[f.Id] {
 					continue
 				}
 				out = append(out, imgFile{
@@ -97,6 +97,9 @@ func withRetry(ctx context.Context, op func() error) error {
 		lastErr = err
 		if !shouldRetry(err) {
 			return err
+		}
+		if attempt == 4 {
+			break
 		}
 		select {
 		case <-ctx.Done():

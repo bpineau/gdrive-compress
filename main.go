@@ -5,10 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -18,7 +20,9 @@ import (
 	"google.golang.org/api/option"
 )
 
-func main() {
+func main() { os.Exit(run()) }
+
+func run() (status int) {
 	var (
 		apply        = flag.Bool("apply", false, "Actually replace files (default: dry-run)")
 		maxKiB       = flag.Int("max-kib", 600, "Target maximum size in KiB")
@@ -31,12 +35,24 @@ func main() {
 	)
 	flag.Parse()
 
-	if _, err := exec.LookPath("magick"); err != nil {
-		log.Fatal("ImageMagick `magick` introuvable. Installe avec: brew install imagemagick")
-	}
-	if *dumpDir != "" {
-		if err := os.MkdirAll(*dumpDir, 0o755); err != nil {
-			log.Fatalf("create dump-dir: %v", err)
+	if !*quotaOnly {
+		switch {
+		case *concurrency < 1:
+			log.Fatal("--concurrency must be positive")
+		case *limit < 0:
+			log.Fatal("--limit must be nonnegative")
+		case *maxKiB <= 0 || *maxKiB > math.MaxInt/1024:
+			log.Fatal("--max-kib is outside the supported range")
+		case *thresholdKiB < 0 || int64(*thresholdKiB) > math.MaxInt64/1024:
+			log.Fatal("--threshold-kib is outside the supported range")
+		}
+		if _, err := exec.LookPath("magick"); err != nil {
+			log.Fatal("ImageMagick `magick` introuvable. Installe avec: brew install imagemagick")
+		}
+		if *dumpDir != "" {
+			if err := os.MkdirAll(*dumpDir, 0o755); err != nil {
+				log.Fatalf("create dump-dir: %v", err)
+			}
 		}
 	}
 
@@ -61,7 +77,7 @@ func main() {
 
 	if *quotaOnly {
 		printQuota(ctx, srv)
-		return
+		return 0
 	}
 
 	plog, err := openLog(*logPath)
@@ -71,6 +87,7 @@ func main() {
 	defer func() {
 		if err := plog.Close(); err != nil {
 			log.Printf("close log: %v", err)
+			status = 1
 		}
 	}()
 
@@ -97,7 +114,7 @@ func main() {
 		fmt.Println("DRY RUN — passe --apply pour vraiment remplacer.")
 	}
 	if len(files) == 0 {
-		return
+		return 0
 	}
 
 	r := &runner{
@@ -123,9 +140,11 @@ func main() {
 		})
 	}
 
+dispatch:
 	for _, f := range files {
 		select {
 		case <-ctx.Done():
+			break dispatch
 		case jobs <- f:
 		}
 	}
@@ -141,6 +160,10 @@ func main() {
 	} else {
 		fmt.Printf("[dry-run] economie estimee: %s (sur %d fichiers compresses)\n", human(saved), r.stats.done.Load())
 	}
+	if r.stats.errs.Load() > 0 || ctx.Err() != nil {
+		return 1
+	}
+	return 0
 }
 
 type stats struct {
@@ -159,10 +182,17 @@ type runner struct {
 	stats   stats
 }
 
+func (r *runner) record(entry logEntry) {
+	if err := r.plog.write(entry); err != nil {
+		r.stats.errs.Add(1)
+		fmt.Fprintf(os.Stderr, "write progress log: %v\n", err)
+	}
+}
+
 func (r *runner) processOne(ctx context.Context, f imgFile) {
 	logErr := func(err error) {
 		r.stats.errs.Add(1)
-		_ = r.plog.write(logEntry{FileID: f.ID, Name: f.Name, OrigSize: f.Size, Error: err.Error(), DryRun: !r.apply})
+		r.record(logEntry{FileID: f.ID, Name: f.Name, OrigSize: f.Size, Error: err.Error(), DryRun: !r.apply})
 		fmt.Fprintf(os.Stderr, "ERR %s (%s): %v\n", f.Name, f.ID, err)
 	}
 
@@ -186,28 +216,26 @@ func (r *runner) processOne(ctx context.Context, f imgFile) {
 
 	if len(out) >= len(in) {
 		r.stats.skipped.Add(1)
-		_ = r.plog.write(logEntry{FileID: f.ID, Name: f.Name, OrigSize: f.Size, NewSize: len(out), Skipped: "no_gain", DryRun: !r.apply})
+		r.record(logEntry{FileID: f.ID, Name: f.Name, OrigSize: f.Size, NewSize: len(out), Skipped: "no_gain", DryRun: !r.apply})
 		fmt.Printf("SKIP %s — recompressed=%s >= orig=%s\n", f.Name, human(int64(len(out))), human(f.Size))
 		return
 	}
 
-	r.stats.bytesIn.Add(f.Size)
+	if r.apply {
+		if err := replaceContent(ctx, r.srv, f.ID, "image/jpeg", f.ModifiedTime, out); err != nil {
+			logErr(fmt.Errorf("replace: %w", err))
+			return
+		}
+	}
+	r.stats.bytesIn.Add(int64(len(in)))
 	r.stats.bytesOut.Add(int64(len(out)))
-
-	if !r.apply {
-		r.stats.done.Add(1)
-		_ = r.plog.write(logEntry{FileID: f.ID, Name: f.Name, OrigSize: f.Size, NewSize: len(out), Strategy: strategy, DryRun: true})
-		fmt.Printf("DRY  %s  %s -> %s  (%s)\n", f.Name, human(f.Size), human(int64(len(out))), strategy)
-		return
-	}
-
-	if err := replaceContent(ctx, r.srv, f.ID, "image/jpeg", f.ModifiedTime, out); err != nil {
-		logErr(fmt.Errorf("replace: %w", err))
-		return
-	}
 	r.stats.done.Add(1)
-	_ = r.plog.write(logEntry{FileID: f.ID, Name: f.Name, OrigSize: f.Size, NewSize: len(out), Strategy: strategy})
-	fmt.Printf("OK   %s  %s -> %s  (%s)\n", f.Name, human(f.Size), human(int64(len(out))), strategy)
+	r.record(logEntry{FileID: f.ID, Name: f.Name, OrigSize: int64(len(in)), NewSize: len(out), Strategy: strategy, DryRun: !r.apply})
+	label := "DRY"
+	if r.apply {
+		label = "OK"
+	}
+	fmt.Printf("%s  %s  %s -> %s  (%s)\n", label, f.Name, human(int64(len(in))), human(int64(len(out))), strategy)
 }
 
 // printQuota fetches live Drive storage usage via about.get and prints the
@@ -233,8 +261,11 @@ func printQuota(ctx context.Context, srv *drive.Service) {
 // dumpDir, using the Drive file ID as a unique prefix so duplicate names
 // don't collide.
 func dumpPair(dumpDir string, f imgFile, orig, recompressed []byte) error {
+	if !filepath.IsLocal(f.ID) || filepath.Base(f.ID) != f.ID {
+		return fmt.Errorf("invalid file ID for dump")
+	}
 	prefix := f.ID + "_"
-	base := f.Name
+	base := strings.NewReplacer("/", "_", "\\", "_").Replace(f.Name)
 	origPath := filepath.Join(dumpDir, prefix+"orig_"+base)
 	newPath := filepath.Join(dumpDir, prefix+"new_"+base)
 	if err := os.WriteFile(origPath, orig, 0o644); err != nil {

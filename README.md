@@ -170,15 +170,15 @@ Reprend où ça s'est arrêté : `processed.jsonl` mémorise les fichiers déjà
 | `--max-kib` | 600 | Cible maximale en KiB. |
 | `--threshold-kib` | 600 | Ignore les fichiers déjà ≤ cette taille (filtré au listing, pas de download). |
 | `--limit` | 0 | Traite au plus N fichiers (0 = pas de limite). |
-| `--concurrency` | 3 | Workers parallèles. |
+| `--concurrency` | 3 | Workers parallèles (au moins 1). |
 | `--log` | `processed.jsonl` | Fichier de progression (reprise sur interruption). |
 
 ## Comment c'est fait
 
-- **Listing** : `files.list` avec `q="mimeType='image/jpeg' and trashed=false"`, paginé (1000/page), filtré côté client sur `Size >= --threshold-kib`.
+- **Listing** : `files.list` avec `q="mimeType='image/jpeg' and trashed=false"`, paginé (1000/page), filtré côté client sur `Size > --threshold-kib`.
 - **Compression** : appel `magick` en sous-process. Binary search du quality factor sur `[40, 92]`, on garde le plus haut quality dont la taille ≤ `--max-kib`. Si même q=40 dépasse, on downscale le côté le plus long progressivement (2400 → 1920 → 1600 → 1280 → 1024 px) et on relance la binary search à chaque palier. EXIF préservé via les options `-sampling-factor 4:2:0 -interlace Plane -define jpeg:optimize-coding=true` (pas de `-strip`).
 - **Remplacement** : `files.update` avec `Media()`. On repasse explicitement le `modifiedTime` original pour ne pas perturber la timeline / le tri Drive.
-- **Robustesse** : retries exponentiels sur 429/5xx jusqu'à 5 tentatives. Si la version recompressée est ≥ l'originale (déjà bien compressée), on saute. Log JSONL append-only pour reprise après interruption ou crash.
+- **Robustesse** : retries exponentiels sur 429/5xx jusqu'à 5 tentatives. Si la version recompressée est ≥ l'originale (déjà bien compressée), on saute. Le journal JSONL permet la reprise même si sa dernière ligne a été interrompue. Une erreur de traitement ou d'écriture du journal donne un code de sortie non nul. Le total économisé en mode `--apply` compte les remplacements réussis.
 - **Pas de race** : les workers (par défaut 3) traitent des fichiers distincts, et les écritures dans `processed.jsonl` sont sérialisées par mutex.
 
 ## ⚠ Le piège des révisions
