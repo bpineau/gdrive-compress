@@ -210,7 +210,8 @@ func (r *runner) processOne(ctx context.Context, f imgFile) {
 
 	if r.dumpDir != "" {
 		if err := dumpPair(r.dumpDir, f, in, out); err != nil {
-			fmt.Fprintf(os.Stderr, "WARN dump %s: %v\n", f.Name, err)
+			logErr(fmt.Errorf("dump comparison: %w", err))
+			return
 		}
 	}
 

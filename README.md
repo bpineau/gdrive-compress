@@ -166,7 +166,7 @@ Reprend où ça s'est arrêté : `processed.jsonl` mémorise les fichiers déjà
 |---|---|---|
 | `--apply` | `false` | Sans ce flag, dry-run (rien n'est modifié dans Drive). |
 | `--quota` | `false` | Affiche l'usage live et quitte. |
-| `--dump-dir` | `""` | Si défini, écrit `<id>_orig_…` + `<id>_new_…` dans ce dossier pour inspection visuelle. |
+| `--dump-dir` | `""` | Si défini, écrit `<id>_orig_…` + `<id>_new_…` dans ce dossier pour inspection visuelle. Si la copie échoue, le fichier Drive est conservé et pourra être repris. |
 | `--max-kib` | 600 | Cible maximale en KiB. |
 | `--threshold-kib` | 600 | Ignore les fichiers déjà ≤ cette taille (filtré au listing, pas de download). |
 | `--limit` | 0 | Traite au plus N fichiers (0 = pas de limite). |

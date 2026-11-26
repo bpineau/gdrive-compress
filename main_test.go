@@ -90,16 +90,26 @@ func TestCompressionAccounting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, apply := range []bool{false, true} {
+	for _, tc := range []struct{ apply, brokenDump bool }{{false, false}, {true, false}, {true, true}} {
+		apply := tc.apply
 		dir := t.TempDir()
 		log, err := openLog(filepath.Join(dir, "progress.jsonl"))
 		if err != nil {
 			t.Fatal(err)
 		}
 		r := runner{srv: srv, plog: log, maxSize: 4096, apply: apply, dumpDir: dir}
+		if tc.brokenDump {
+			r.dumpDir = filepath.Join(dir, "missing")
+		}
 		r.processOne(ctx, imgFile{ID: "test", Name: "sample.jpg", Size: int64(src.Len())})
 		if err := log.Close(); err != nil {
 			t.Fatal(err)
+		}
+		if tc.brokenDump {
+			b, err := os.ReadFile(filepath.Join(dir, "progress.jsonl"))
+			if err != nil || !bytes.Contains(b, []byte("dump")) || bytes.Contains(b, []byte("replace:")) {
+				t.Fatalf("dump failure did not stop replacement: %s, %v", b, err)
+			}
 		}
 		if apply {
 			if r.stats.errs.Load() != 1 || r.stats.bytesIn.Load() != 0 || r.stats.bytesOut.Load() != 0 || r.stats.done.Load() != 0 {
